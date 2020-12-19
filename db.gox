@@ -1,0 +1,116 @@
+package main
+
+import (
+	"database/sql"
+	"encoding/json"
+
+	_ "github.com/mattn/go-sqlite3"
+)
+
+type DB struct {
+	*sql.DB
+}
+
+func newDB(dsn string) (*DB, error) {
+	db := DB{}
+	var err error
+	db.DB, err = sql.Open("sqlite3", dsn)
+	if err != nil {
+		return nil, err
+	}
+	err = db.Ping()
+	if err != nil {
+		return nil, err
+	}
+	// optimizations https://www.alexedwards.net/blog/configuring-sqldb
+	// db.SetMaxOpenConns(25)
+	// db.SetMaxIdleConns(25)
+	// db.SetConnMaxLifetime(5 * time.Minute)
+	return &db, nil
+}
+
+func (db *DB) Close() error {
+	return db.DB.Close()
+}
+func (db *DB) Find(query string, args ...interface{}) ([]interface{}, int, error) {
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	// determine types of columns included in query and use to construct typed args
+	columnTypes, err := rows.ColumnTypes()
+	if err != nil {
+		return nil, 0, err
+	}
+	//TODO optimize by caching in db.scanners: map[querystring][]interface{}
+	scanArgs := make([]interface{}, len(columnTypes))
+	for i, v := range columnTypes {
+		// fmt.Println(v.Name(), v.DatabaseTypeName())
+		switch v.DatabaseTypeName() {
+		// case "VARCHAR", "TEXT", "UUID", "TIMESTAMP":
+		// 	scanArgs[i] = new(sql.NullString)
+		case "BOOL":
+			scanArgs[i] = new(sql.NullBool)
+		case "FLOAT", "REAL":
+			scanArgs[i] = new(sql.NullFloat64)
+		case "NUMERIC", "INTEGER":
+			scanArgs[i] = new(sql.NullInt64)
+		case "DATETIME":
+			scanArgs[i] = new(sql.NullTime)
+		default:
+			scanArgs[i] = new(sql.NullString)
+		}
+	}
+
+	finalRows := []interface{}{}
+	for rows.Next() {
+		err := rows.Scan(scanArgs...)
+		if err != nil {
+			return nil, 0, err
+		}
+		// construct a map with field names and values
+		data := map[string]interface{}{}
+		for i, v := range columnTypes {
+			name := v.Name()
+			data[name] = scanArgs[i]
+			switch xv := scanArgs[i].(type) {
+			case *sql.NullFloat64:
+				data[name] = xv.Float64
+			case *sql.NullBool:
+				data[name] = xv.Bool
+			case *sql.NullInt64:
+				data[name] = xv.Int64
+			case *sql.NullString:
+				data[name] = xv.String
+			default:
+				// data[name] = z.String
+			}
+		}
+		err = rows.Err()
+		if err != nil {
+			return nil, 0, err
+		}
+		finalRows = append(finalRows, data)
+	}
+	return finalRows, len(finalRows), nil
+}
+
+func (db *DB) JSON(query string, args ...interface{}) ([]byte, int, error) {
+	finalRows, n, err := db.Find(query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	json, err := json.Marshal(finalRows)
+	return json, n, err
+}
+
+//TODO: use named args
+// db.ExecContext(ctx, `
+//     delete from Invoice
+//     where
+//         TimeCreated < @end
+//         and TimeCreated >= @start;`,
+//     sql.Named("start", startTime),
+//     sql.Named("end", endTime),
+// )
