@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"net/http"
 
 	"github.com/drgo/realworld/errors"
@@ -54,7 +53,7 @@ func ServeArticles(ctx *Ctx) error {
 		return articlesList(ctx, "")
 	}
 	action, ctx.Req.URL.Path = utils.ShiftPath(ctx.Req.URL.Path)
-	log.Println(slug, action)
+	_ = errors.Debug && errors.Logln(slug, action)
 	switch action {
 	case "comments": ///api/articles/:slug/comments
 		switch dx.Method {

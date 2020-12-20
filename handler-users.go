@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"net/http"
 
 	"github.com/drgo/realworld/errors"
@@ -65,11 +64,10 @@ func ServeUsers(ctx *Ctx) error {
 func usersLogin(ctx *Ctx) error {
 	dx := errors.D(ctx.Req, "login")
 	var creds credentials
-	err := utils.DecodeJSONBody(ctx.Res, ctx.Req, &creds)
-	if err != nil {
+	if err := utils.DecodeJSONBody(ctx.Res, ctx.Req, &creds); err != nil {
 		return errors.E(dx, err, http.StatusBadRequest)
 	}
-	log.Println("creds:", creds)
+	_ = errors.Debug && errors.Logln("creds:", creds)
 	row, err := ctx.Store().SignInByEmailAndPassword(creds.User.Email, creds.User.Password)
 	if err != nil {
 		return errors.E(dx, err, http.StatusUnauthorized)
@@ -78,7 +76,7 @@ func usersLogin(ctx *Ctx) error {
 	s := ctx.Server.Sessions.Add(row["id"].(int64))
 	// send token as cookie
 	c := s.NewCookie()
-	log.Println("cookie", c)
+	_ = errors.Debug && errors.Logln("cookie", c)
 	http.SetCookie(ctx.Res, c)
 	json, err := ctx.Store().GetUserJSON(s.UserID)
 	if err != nil {
@@ -101,8 +99,7 @@ func usersLogin(ctx *Ctx) error {
 func usersRegister(ctx *Ctx) error {
 	dx := errors.D(ctx.Req, "register")
 	var creds credentials
-	err := utils.DecodeJSONBody(ctx.Res, ctx.Req, &creds)
-	if err != nil {
+	if err := utils.DecodeJSONBody(ctx.Res, ctx.Req, &creds); err != nil {
 		return errors.E(dx, err, http.StatusBadRequest)
 	}
 	id, err := ctx.Store().CreateUser(&creds)

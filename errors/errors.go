@@ -6,12 +6,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
+	"os"
 	"runtime"
 	"time"
-
-	"github.com/drgo/realworld/utils"
 )
 
 type (
@@ -40,6 +38,15 @@ func D(r *http.Request, op string) Diag {
 	}
 }
 
+var std = os.Stderr
+
+// JSON encodes v as JSON and write it to http.ResponseWriter
+func JSON(w http.ResponseWriter, status int, v interface{}) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	return json.NewEncoder(w).Encode(v)
+}
+
 // Send responds with an error
 // TODO: hide internal error details
 func Send(w http.ResponseWriter, err error) {
@@ -48,9 +55,9 @@ func Send(w http.ResponseWriter, err error) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	utils.JSON(w, e.Status, e)
+	JSON(w, e.Status, e)
 	// for the moment,log the error here
-	log.Println(e.Error())
+	_ = Debug && Logln(e.Error())
 }
 
 // Error is the type that implements the error interface.
@@ -196,7 +203,7 @@ func E(args ...interface{}) error {
 			e.Err = arg
 		default:
 			_, file, line, _ := runtime.Caller(1)
-			log.Printf("errors.E: bad call from %s:%d: %v", file, line, args)
+			_ = Debug && Logf("errors.E: bad call from %s:%d: %v", file, line, args)
 			return Errorf("unknown type %T, value %v in error call", arg, arg)
 		}
 	}
@@ -300,8 +307,16 @@ func Is(kind Kind, err error) bool {
 func Recover(w http.ResponseWriter) {
 	err := recover()
 	if err != nil {
-		log.Println(err)
+		_ = Debug && Logln(err)
 		//TODO: sendMeMail(err)
 		http.Error(w, "", http.StatusInternalServerError)
+	}
+}
+
+// Fatal panics if err != nil
+//FIXME: add more details
+func Fatal(err error) {
+	if err != nil {
+		panic(err)
 	}
 }

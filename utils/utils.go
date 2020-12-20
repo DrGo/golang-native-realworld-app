@@ -2,12 +2,13 @@ package utils
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/drgo/realworld/errors"
 )
 
 // ShiftPath splits off the first component of p, which will be cleaned of
@@ -21,7 +22,7 @@ func ShiftPath(path string) (head, tail string) {
 	if i <= 0 {
 		return path[1:], "/"
 	}
-	// log.Println("head:", path[1:i], "rest:", path[i:])
+	// _ = errors.Debug && errors.Logln("head:", path[1:i], "rest:", path[i:])
 	return path[1:i], path[i:]
 }
 
@@ -29,17 +30,9 @@ func ShiftPath(path string) (head, tail string) {
 func Send(w http.ResponseWriter, b []byte) {
 	n, err := w.Write(b)
 	if err != nil {
-		log.Printf("write failed (%d chars read): %v", n, err)
+		_ = errors.Debug && errors.Logf("write failed (%d chars read): %v", n, err)
 		panic(err) //temp
 	}
-}
-
-// SendJSON writes JSON to http.ResponseWriter and handle errors
-func SendJSON(w http.ResponseWriter, status int, b []byte) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_, err := w.Write(b)
-	return err
 }
 
 func PrintRequestInfo(w http.ResponseWriter, r *http.Request) {

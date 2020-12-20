@@ -58,6 +58,8 @@ func (ss *Sessions) Finalize() {
 func (ss *Sessions) GenSessionID() string {
 	p1 := time.Now().UnixNano()
 	p2 := rand.Int63()
+	//TODO: switch to appendFormat and preallocate storage eg var a [32]byte; var b=a[:0]
+	// eg https://golang.org/src/math/big/intconv.go?s=864:913#L20
 	return strconv.FormatInt(p1, 16) + strconv.FormatInt(p2, 16)
 	/*
 		// one possibility using a string (also uuid)
@@ -150,8 +152,9 @@ func (s *Session) NewCookie() *http.Cookie {
 		Name:  s.Sessions.CookieName,
 		Value: s.ID,
 		Path:  "/", //otherwise it defaults to dx
-		// Secure:   true,
-		HttpOnly: true, //do not allow JS code to access it
+		//FIXME: enable secure
+		// Secure:   true, //only sent over HTTPS
+		HttpOnly: true, //do not allow JS code to access it; some protection against XSS attacks
 		MaxAge:   s.Sessions.MaxLifeTime,
 	}
 	// uncomment if compatability with IE is needed

@@ -15,16 +15,17 @@ type Args map[string]interface{}
 // Row represent an arbitrary table row
 type Row map[string]interface{}
 
-// DB is an interface that defines database functionality required by Store.
-type DB interface {
-	Close() error
-	Query(query string, args Args) (rows []Row, rowCount int, err error)
-	JSONQuery(query string, args Args) (result string, rowCount int, err error)
-	Exec(string, Args) (rowsAffected int, lastRowID int64, err error)
-}
+// // DB is an interface that defines database functionality required by Store.
+// //TODO: consider removing interface to increase performance
+// type DB interface {
+// 	Close() error
+// 	Query(query string, args Args) (rows []Row, rowCount int, err error)
+// 	JSONQuery(query string, args Args) (result string, rowCount int, err error)
+// 	Exec(string, Args) (rowsAffected int, lastRowID int64, err error)
+// }
 
 type Store struct {
-	db DB
+	db *sqlite
 }
 
 //TODO: inject DB into store to remove dependency on NewDB()
@@ -37,7 +38,7 @@ func mustNewStore(dsn string) *Store {
 }
 
 func newStore(dsn string) (*Store, error) {
-	db, err := NewDB(dsn)
+	db, err := NewDB(dsn, DefaultPoolFlags, DefaultPoolSize)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +71,7 @@ func (st *Store) SignInByEmailAndPassword(email, password string) (Row, error) {
 }
 
 func (st *Store) GetUserJSON(uid int64) ([]byte, error) {
-	rows, count, err := st.db.Query(`select id, username, email, bio, image, 'useless' as token from User 
+	rows, count, err := st.db.Query(`select id, username, email, bio, image, random() as token from User 
 	where id= $uid`, Args{"$uid": uid})
 	if err != nil || count == 0 {
 		return nil, errors.Errorf("user not found: %v", err)

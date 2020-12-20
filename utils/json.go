@@ -69,14 +69,23 @@ func DecodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) err
 	return nil
 }
 
+// JSON encodes v as JSON and write it to http.ResponseWriter
 func JSON(w http.ResponseWriter, status int, v interface{}) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	return json.NewEncoder(w).Encode(v)
 }
 
+// SendJSON writes (presumably) JSON data to http.ResponseWriter and ignores errors
+func SendJSON(w http.ResponseWriter, status int, b []byte) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_, err := w.Write(b)
+	return err
+}
+
 // Map for adhoc json generation
-//JSON(w, s, Map{
+//eg, JSON(w, s, Map{
 //     "field1": someStructData1,
 //     "field2": someStructData2,
 // })

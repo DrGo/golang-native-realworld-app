@@ -1,14 +1,12 @@
 package main
 
 import (
-	"log"
-
 	sql "crawshaw.io/sqlite"
 	sqlx "crawshaw.io/sqlite/sqlitex"
 	"github.com/drgo/realworld/errors"
 )
 
-const poolSize = 10
+const DefaultPoolSize = 10
 
 // A flags value of 0 defaults to:
 //	SQLITE_OPEN_READWRITE
@@ -16,21 +14,28 @@ const poolSize = 10
 //	SQLITE_OPEN_WAL
 //	SQLITE_OPEN_URI
 //	SQLITE_OPEN_NOMUTEX
-const poolFlags = 0
+const DefaultPoolFlags = 0
 
 type sqlite struct {
-	pool *sqlx.Pool
+	pool     *sqlx.Pool
+	poolSize int
 }
 
-// Guarantee that sqlite implements the DB interface
-var _ DB = (*sqlite)(nil)
+// // Guarantee that sqlite implements the DB interface
+// var _ DB = (*sqlite)(nil)
 
 // NewDB opens a fixed-size pool of SQLite connections
-func NewDB(dsn string) (DB, error) {
-	db := sqlite{}
+func NewDB(dsn string, poolFlags sql.OpenFlags, poolSize int) (*sqlite, error) {
+	db := sqlite{poolSize: poolSize}
 	var err error
 	db.pool, err = sqlx.Open(dsn, poolFlags, poolSize)
 	if err != nil {
+		return nil, err
+	}
+	if err = db.ApplyPragmas(`
+	pragma temp_store = memory;
+	pragma mmap_size = 30000000000;
+	pragma page_size = 32768;`); err != nil {
 		return nil, err
 	}
 	return &db, nil
@@ -40,6 +45,7 @@ func (db *sqlite) Close() error {
 	return db.pool.Close()
 }
 
+//FIXME: see sqlitex code
 // bindQuery bind stmt to args based on type
 func bindQuery(stmt *sql.Stmt, args Args) error {
 	for k, v := range args {
@@ -67,7 +73,7 @@ func bindQuery(stmt *sql.Stmt, args Args) error {
 func (db *sqlite) Query(query string, args Args) (rows []Row, rowCount int, err error) {
 	conn := db.pool.Get(nil)
 	defer db.pool.Put(conn)
-	log.Println("Query:", query)
+	_ = errors.Debug && errors.Logln("Query:", query)
 	//compile (and cache) query; no need to finalize it
 	stmt := conn.Prep(query)
 	// bind args to compiled statement
@@ -79,7 +85,6 @@ func (db *sqlite) Query(query string, args Args) (rows []Row, rowCount int, err 
 			panic(err)
 		}
 	}()
-	// rows := []interface{}{}
 	// TODO: not clear if needed https://stackoverflow.com/questions/35741175/sqlite3-reset-when-is-it-needed
 	// step through returned records and retrieve info
 	for {
@@ -118,7 +123,7 @@ func (db *sqlite) Query(query string, args Args) (rows []Row, rowCount int, err 
 func (db *sqlite) Exec(query string, args Args) (rowsAffected int, lastRowID int64, err error) {
 	conn := db.pool.Get(nil)
 	defer db.pool.Put(conn)
-	log.Println("Exec:", query)
+	_ = errors.Debug && errors.Logln("Exec:", query)
 	//compile (and cache) query; no need to finalize it
 	stmt := conn.Prep(query)
 	// bind args to compiled statement
@@ -139,7 +144,7 @@ func (db *sqlite) Exec(query string, args Args) (rowsAffected int, lastRowID int
 func (db *sqlite) JSONQuery(query string, args Args) (result string, rowCount int, err error) {
 	conn := db.pool.Get(nil)
 	defer db.pool.Put(conn)
-	log.Println("JSONQuery:", query)
+	_ = errors.Debug && errors.Logln("JSONQuery:", query)
 	//compile (and cache) query; no need to finalize it
 	stmt := conn.Prep(query)
 	// bind args to compiled statement
@@ -172,5 +177,29 @@ func (db *sqlite) JSONQuery(query string, args Args) (result string, rowCount in
 // 	for {
 // 		time.Sleep(24 * time.Hour)
 // 		db.cleanup()
+// 	}
+// }
+func (db *sqlite) ApplyPragmas(pragmas string) error {
+	for i := 0; i < db.poolSize; i++ {
+		conn := db.pool.Get(nil)
+		if err := sqlx.ExecScript(conn, pragmas); err != nil {
+			db.pool.Close()
+			return err
+		}
+		db.pool.Put(conn)
+	}
+	return nil
+}
+
+// if openFlags&SQLITE_OPEN_WAL > 0 {
+// 	stmt, _, err := conn.PrepareTransient("PRAGMA journal_mode=wal;")
+// 	if err != nil {
+// 		conn.Close()
+// 		return nil, err
+// 	}
+// 	defer stmt.Finalize()
+// 	if _, err := stmt.Step(); err != nil {
+// 		conn.Close()
+// 		return nil, err
 // 	}
 // }

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"net/http"
 
 	"github.com/drgo/realworld/errors"
@@ -15,7 +14,7 @@ import (
 func ServeProfiles(ctx *Ctx) error {
 	dx := errors.D(ctx.Req, "ServeProfiles")
 	var userName, cmd string
-	log.Println("ServeProfiles: initial path", dx.Path)
+	_ = errors.Debug && errors.Logln("ServeProfiles: initial path", dx.Path)
 	userName, ctx.Req.URL.Path = utils.ShiftPath(dx.Path)
 	if userName == "" { //userName required
 		return errors.E(dx, http.StatusNotFound)

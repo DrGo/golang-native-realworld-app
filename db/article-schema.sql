@@ -26,6 +26,7 @@ Create Trigger Article_tr_update After Update On Article Begin
 End;
 
 CREATE INDEX IF NOT EXISTS Artice_ix_author ON Article (author);
+CREATE INDEX IF NOT EXISTS Artice_ix_tag ON Article (tag);
 
 -- convert Unix-Times to DateTimes so not every single query needs to do so
 -- convert Integer(4) (treating it as Unix-Time)--   to YYYY-MM-DD HH:MM:SS
@@ -63,6 +64,8 @@ CREATE TABLE "Tag" (
 	-- FOREIGN KEY("articleID") REFERENCES ,
 	PRIMARY KEY("tag","articleID")
 );
+CREATE INDEX IF NOT EXISTS Tag_ix_tag ON Tag (tag);
+CREATE INDEX IF NOT EXISTS Tag_ix_articleID ON Tag (articleID);
 
 INSERT INTO "Tag" ("tag", "articleID") VALUES 
 ('js', '1'),
